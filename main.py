@@ -7,15 +7,6 @@ from torch_geometric.data import Data
 from torch_geometric.nn import GCNConv
 import random
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import networkx as nx
-import matplotlib.pyplot as plt
-from torch_geometric.data import Data
-from torch_geometric.nn import GCNConv
-import random
-
 
 # Define GNN Policy Network
 class MeshGNN(nn.Module):
@@ -92,9 +83,25 @@ def train_rl_agent():
     print("Training complete!")
 
 
-# Placeholder functions
 def count_non_manifold_edges(mesh):
-    return random.randint(0, 10)  # Simulating a varying count
+    non_manifold_edges = 0
+
+    # For each edge, we check how many neighbors (faces) share it
+    for edge in mesh.edges:
+        # Find all nodes that are part of the edge
+        u, v = edge
+
+        # Check how many faces (or adjacent edges) share this edge
+        # This can be simulated by counting the number of neighbors of each node
+        u_neighbors = set(mesh.neighbors(u))
+        v_neighbors = set(mesh.neighbors(v))
+
+        # If the intersection of u and v's neighbors is larger than 1, it means
+        # multiple faces (or groups of edges) are sharing this edge, making it non-manifold
+        if len(u_neighbors & v_neighbors) > 1:
+            non_manifold_edges += 1
+
+    return non_manifold_edges
 
 
 def count_non_manifold_vertices(mesh):
@@ -102,7 +109,11 @@ def count_non_manifold_vertices(mesh):
 
 
 def count_disconnected_components(mesh):
-    return random.randint(0, 3)  # Simulating a varying count
+    # Get all connected components in the graph
+    connected_components = list(nx.connected_components(mesh))
+
+    # The number of disconnected components is simply the length of this list
+    return len(connected_components)
 
 
 def generate_random_mesh():
@@ -135,3 +146,22 @@ def apply_action(mesh, action):
 # Run test example
 if __name__ == "__main__":
     train_rl_agent()
+
+
+# Non manifold types - https://www.sculpteo.com/en/3d-learning-hub/create-3d-file/fix-non-manifold-geometry/
+# 1. three or more faces meet at an edge
+# 2. several surfaces meet at a vertex
+# 3. open object
+# 4. internal faces
+# 5. opposite normals between adjacent faces
+
+
+"""
+Steps to do:
+1. Understand how mesh is captured in the form of graph
+2. Understand the reward function and how it's linked to the model outputs
+3. Understand the action selection process
+4. Understand the training loop
+5. Understand training of the policy and how to generate realistic shapes
+6. is 2D useful or straight to 3d
+"""
