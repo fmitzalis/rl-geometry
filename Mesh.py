@@ -102,6 +102,19 @@ class Mesh:
             return self._split_edge(params)
         return False
 
+    def triangulate_faces(self) -> None:
+        """Ensure all faces are triangles by fan triangulation."""
+        new_faces: List[List[int]] = []
+        for face in self.faces:
+            if len(face) == 3:
+                new_faces.append(face)
+            elif len(face) > 3:
+                # Fan triangulation: (v0, v1, v2), (v0, v2, v3), ...
+                v0 = face[0]
+                for i in range(1, len(face) - 1):
+                    new_faces.append([v0, face[i], face[i + 1]])
+        self.faces = new_faces
+
     def _merge_vertex(self, vertex_index: int) -> bool:
         if vertex_index is None or len(self.vertices) <= 1:
             return False
@@ -126,6 +139,7 @@ class Mesh:
             if len(unique_face) >= 3:
                 new_faces.append(unique_face)
         self.faces = new_faces
+        self.triangulate_faces()
         self.graph = self._build_graph()
         return True
 
@@ -157,6 +171,7 @@ class Mesh:
                 if (v == v1 and face[(j + 1) % len(face)] == v2) or (v == v2 and face[(j + 1) % len(face)] == v1):
                     face.insert((j + 1) % len(face), new_vertex_idx)
                     break
+        self.triangulate_faces()
         self.graph = self._build_graph()
         return True
 
