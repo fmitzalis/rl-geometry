@@ -468,15 +468,14 @@ def save_mesh_to_stl(mesh, output_file):
 
 # Main execution
 if __name__ == "__main__":
-    # Either generate a test mesh with known issues or load from STL
-    use_test_mesh = True
-    input_stl = None  # "path/to/your/input.stl"
+    # input_stl = None
+    INPUT_STL = "non_manifold.stl"
 
-    if use_test_mesh:
+    if INPUT_STL is None:
         mesh = generate_test_mesh()
         print("Using test mesh with known non-manifold issues")
-    elif input_stl:
-        mesh = load_stl_to_mesh(input_stl)
+    elif INPUT_STL:
+        mesh = load_stl_to_mesh(INPUT_STL)
         if mesh is None:
             print("Falling back to test mesh")
             mesh = generate_test_mesh()
@@ -502,7 +501,7 @@ if __name__ == "__main__":
 
 """
 Steps to do:
-1. Understand how mesh is captured in the form of graph
+1. Understand how mesh is captured in the form of graph - Done
 2. Understand the reward function and how it's linked to the model outputs
 3. Understand the action selection process
 4. Understand the training loop
