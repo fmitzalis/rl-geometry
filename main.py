@@ -111,22 +111,17 @@ def generate_test_mesh():
 # Select action based on policy network output
 def select_action(state, model):
     """Select action based on policy network output."""
-    with torch.no_grad():
-        # Make sure we're passing tensors with right dimensions
-        if state.x.dim() == 1:
-            state.x = state.x.unsqueeze(0)
+    if state.x.dim() == 1:
+        state.x = state.x.unsqueeze(0)
 
-        # Get action probabilities from model
-        action_probs = model(state.x, state.edge_index)
+    action_probs = model(state.x, state.edge_index)
 
-        # Ensure action_probs is properly shaped (batch_size, num_actions)
-        if action_probs.dim() == 1:
-            action_probs = action_probs.unsqueeze(0)
+    if action_probs.dim() == 1:
+        action_probs = action_probs.unsqueeze(0)
 
-        # Create action distribution
-        action_distribution = torch.distributions.Categorical(action_probs)
-        action = action_distribution.sample()
-        log_prob = action_distribution.log_prob(action)
+    action_distribution = torch.distributions.Categorical(action_probs)
+    action = action_distribution.sample()
+    log_prob = action_distribution.log_prob(action)
 
     return action, log_prob
 
@@ -261,21 +256,10 @@ def train_rl_agent(mesh=None, num_episodes=100, steps_per_episode=50, visualize=
 
             # Store experience (with proper tensor handling)
             try:
-                # Convert to scalar if needed
-                if hasattr(reward, "shape") and reward.numel() > 1:
-                    buffer_reward = reward.clone().detach().mean()  # Average if multi-dimensional
-                else:
-                    buffer_reward = reward.clone().detach()
-
-                if hasattr(log_prob, "shape") and log_prob.numel() > 1:
-                    buffer_log_prob = log_prob.clone().detach().mean()  # Average if multi-dimensional
-                else:
-                    buffer_log_prob = log_prob.clone().detach()
-
                 buffer_states.append(state)
-                buffer_actions.append(action.clone().detach())
-                buffer_log_probs.append(buffer_log_prob)
-                buffer_rewards.append(buffer_reward)
+                buffer_actions.append(action)
+                buffer_log_probs.append(log_prob)  # Do NOT detach here
+                buffer_rewards.append(reward)  # Do NOT detach here
 
                 episode_rewards += reward.item() if hasattr(reward, "item") else float(reward)
             except Exception as e:
