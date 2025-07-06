@@ -6,7 +6,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import random
 from typing import Any, Tuple
 
-from Mesh import Mesh, load_stl_to_mesh, save_mesh_to_stl
+from Mesh import Mesh, load_stl_to_mesh, save_mesh_to_stl, visualize_mesh_3d
 from PolicyGNN import PolicyGNN
 
 
@@ -17,33 +17,6 @@ def compute_reward(mesh: Mesh) -> torch.Tensor:
     num_disconnected = mesh.count_disconnected_components()
     reward = -(2.0 * len(non_manifold_edges) + 1.5 * len(non_manifold_vertices) + 0.5 * max(0, num_disconnected - 1))
     return torch.tensor(reward, dtype=torch.float)
-
-
-def visualize_mesh_3d(mesh: Mesh, title: str = "Mesh Visualization", highlight_non_manifold: bool = True) -> plt.Figure:
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection="3d")
-    for i, j in mesh.graph.edges():
-        x = [mesh.vertices[i][0], mesh.vertices[j][0]]
-        y = [mesh.vertices[i][1], mesh.vertices[j][1]]
-        z = [mesh.vertices[i][2], mesh.vertices[j][2]]
-        ax.plot(x, y, z, color="gray", linewidth=1)
-    x_vals = [v[0] for v in mesh.vertices]
-    y_vals = [v[1] for v in mesh.vertices]
-    z_vals = [v[2] for v in mesh.vertices]
-    ax.scatter(x_vals, y_vals, z_vals, color="blue", s=20)
-    if highlight_non_manifold:
-        nm_edges = mesh.detect_non_manifold_edges()
-        for edge in nm_edges:
-            x = [mesh.vertices[edge[0]][0], mesh.vertices[edge[1]][0]]
-            y = [mesh.vertices[edge[0]][1], mesh.vertices[edge[1]][1]]
-            z = [mesh.vertices[edge[0]][2], mesh.vertices[edge[1]][2]]
-            ax.plot(x, y, z, color="red", linewidth=2)
-        nm_vertices = mesh.detect_non_manifold_vertices()
-        for v_idx in nm_vertices:
-            ax.scatter(mesh.vertices[v_idx][0], mesh.vertices[v_idx][1], mesh.vertices[v_idx][2], color="red", s=50)
-    ax.set_title(title)
-    plt.tight_layout()
-    return fig
 
 
 def select_action(state: Any, model: PolicyGNN) -> Tuple[torch.Tensor, torch.Tensor]:
