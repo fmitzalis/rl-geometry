@@ -5,6 +5,8 @@ import torch
 from torch_geometric.data import Data
 from collections import defaultdict
 
+from stl import mesh as stl_mesh
+
 
 class Mesh:
     def __init__(self, vertices: List[Tuple[float, float, float]] = None, faces: List[List[int]] = None) -> None:
@@ -205,3 +207,82 @@ class Mesh:
         features = torch.cat([x, nm_vertex_feature, nm_edge_feature], dim=1)
 
         return Data(x=features, edge_index=edge_index)
+
+
+def load_stl_to_mesh(stl_file_path) -> Mesh:
+    try:
+
+        stl_data = stl_mesh.Mesh.from_file(stl_file_path)
+
+        vertices = []
+        faces = []
+        vertex_dict = {}  # Used to identify unique vertices
+
+        for i, face in enumerate(stl_data.vectors):
+            face_indices = []
+            for vertex in face:
+                # Convert to tuple for hashability
+                v_tuple = tuple(vertex)
+                # Check if we've seen this vertex before
+                if v_tuple not in vertex_dict:
+                    vertex_dict[v_tuple] = len(vertices)
+                    vertices.append(v_tuple)
+                # Add vertex index to face
+                face_indices.append(vertex_dict[v_tuple])
+            faces.append(face_indices)
+
+        return Mesh(vertices=vertices, faces=faces)
+    except ImportError:
+        return ImportError("numpy-stl package not installed.")
+    except Exception as e:
+        raise ValueError(f"Failed to load STL file: {stl_file_path}") from e
+
+
+def save_mesh_to_stl(mesh, output_file):
+    try:
+        # Count triangular faces (we need to triangulate any quads)
+        triangle_count = 0
+        for face in mesh.faces:
+            if len(face) == 3:
+                triangle_count += 1
+            elif len(face) == 4:
+                triangle_count += 2  # Quad will be split into 2 triangles
+            else:
+                # Simple triangulation: connect first vertex to all others
+                triangle_count += len(face) - 2
+
+        # Create STL mesh
+        stl_data = stl_mesh.Mesh(np.zeros(triangle_count, dtype=stl_mesh.Mesh.dtype))
+
+        # Add faces to STL mesh
+        i = 0
+        for face in mesh.faces:
+            if len(face) == 3:
+                # Triangle: directly add
+                stl_data.vectors[i] = np.array([mesh.vertices[face[0]], mesh.vertices[face[1]], mesh.vertices[face[2]]])
+                i += 1
+            elif len(face) == 4:
+                # Quad: split into 2 triangles
+                stl_data.vectors[i] = np.array([mesh.vertices[face[0]], mesh.vertices[face[1]], mesh.vertices[face[2]]])
+                i += 1
+                stl_data.vectors[i] = np.array([mesh.vertices[face[0]], mesh.vertices[face[2]], mesh.vertices[face[3]]])
+                i += 1
+            else:
+                # N-gon: fan triangulation from first vertex
+                for j in range(1, len(face) - 1):
+                    stl_data.vectors[i] = np.array(
+                        [mesh.vertices[face[0]], mesh.vertices[face[j]], mesh.vertices[face[j + 1]]]
+                    )
+                    i += 1
+
+        # Save the mesh to file in ASCII format
+        with open(output_file, "w") as f:
+            stl_data.write(f, mode="ascii")
+        print(f"Mesh saved successfully to {output_file} (ASCII format)")
+        return True
+    except ImportError:
+        print("numpy-stl package required for STL saving. Install with: pip install numpy-stl")
+        return False
+    except Exception as e:
+        print(f"Error saving STL file: {e}")
+        return False

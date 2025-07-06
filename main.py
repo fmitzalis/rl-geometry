@@ -5,7 +5,7 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import random
 
-from Mesh import Mesh
+from Mesh import Mesh, load_stl_to_mesh, save_mesh_to_stl
 from PolicyGNN import PolicyGNN
 
 
@@ -58,37 +58,6 @@ def visualize_mesh_3d(mesh, title="Mesh Visualization", highlight_non_manifold=T
     ax.set_title(title)
     plt.tight_layout()
     return fig
-
-
-# Generate a test mesh with non-manifold features
-def generate_test_mesh():
-    """Generate a simple test mesh with non-manifold features."""
-    # Create a cube with an additional face sharing an edge (non-manifold edge)
-    vertices = [
-        (0, 0, 0),  # 0
-        (1, 0, 0),  # 1
-        (1, 1, 0),  # 2
-        (0, 1, 0),  # 3
-        (0, 0, 1),  # 4
-        (1, 0, 1),  # 5
-        (1, 1, 1),  # 6
-        (0, 1, 1),  # 7
-        (0.5, 0.5, -0.5),  # 8 - additional vertex for non-manifold issues
-    ]
-
-    # Cube faces
-    faces = [
-        [0, 1, 2, 3],  # bottom
-        [4, 5, 6, 7],  # top
-        [0, 1, 5, 4],  # front
-        [1, 2, 6, 5],  # right
-        [2, 3, 7, 6],  # back
-        [3, 0, 4, 7],  # left
-        [0, 1, 8],  # additional face creating non-manifold edge (0,1)
-        [1, 2, 8],  # additional face creating non-manifold vertex at 1
-    ]
-
-    return Mesh(vertices=vertices, faces=faces)
 
 
 # Select action based on policy network output
@@ -144,45 +113,9 @@ def apply_action(mesh, action_idx):
 
 
 # Load STL to Mesh object
-def load_stl_to_mesh(stl_file_path):
-    """Load an STL file into our Mesh structure."""
-    try:
-        from stl import mesh as stl_mesh
-
-        stl_data = stl_mesh.Mesh.from_file(stl_file_path)
-
-        # Extract vertices and faces from STL
-        vertices = []
-        faces = []
-        vertex_dict = {}  # Used to identify unique vertices
-
-        for i, face in enumerate(stl_data.vectors):
-            face_indices = []
-            for vertex in face:
-                # Convert to tuple for hashability
-                v_tuple = tuple(vertex)
-                # Check if we've seen this vertex before
-                if v_tuple not in vertex_dict:
-                    vertex_dict[v_tuple] = len(vertices)
-                    vertices.append(v_tuple)
-                # Add vertex index to face
-                face_indices.append(vertex_dict[v_tuple])
-            faces.append(face_indices)
-
-        return Mesh(vertices=vertices, faces=faces)
-    except ImportError:
-        print("numpy-stl package required for STL loading. Install with: pip install numpy-stl")
-        return None
-    except Exception as e:
-        print(f"Error loading STL file: {e}")
-        return None
-
-
 # Main RL training loop
-def train_rl_agent(mesh=None, num_episodes=100, steps_per_episode=50, visualize=True):
+def train_rl_agent(mesh: Mesh, num_episodes=100, steps_per_episode=50, visualize=True):
     """Train an RL agent to repair mesh non-manifold issues."""
-    if mesh is None:
-        mesh = generate_test_mesh()
 
     # Define model
     in_features = 5  # x,y,z coordinates + 2 non-manifold indicators
@@ -379,83 +312,12 @@ def update_policy(model, optimizer, states, actions, log_probs, rewards):
 
 
 # Save mesh to STL file
-def save_mesh_to_stl(mesh, output_file):
-    """Save mesh to an STL file in ASCII format."""
-    try:
-        from stl import mesh as stl_mesh
-        import numpy as np
-
-        # Count triangular faces (we need to triangulate any quads)
-        triangle_count = 0
-        for face in mesh.faces:
-            if len(face) == 3:
-                triangle_count += 1
-            elif len(face) == 4:
-                triangle_count += 2  # Quad will be split into 2 triangles
-            else:
-                # Simple triangulation: connect first vertex to all others
-                triangle_count += len(face) - 2
-
-        # Create STL mesh
-        stl_data = stl_mesh.Mesh(np.zeros(triangle_count, dtype=stl_mesh.Mesh.dtype))
-
-        # Add faces to STL mesh
-        i = 0
-        for face in mesh.faces:
-            if len(face) == 3:
-                # Triangle: directly add
-                stl_data.vectors[i] = np.array([mesh.vertices[face[0]], mesh.vertices[face[1]], mesh.vertices[face[2]]])
-                i += 1
-            elif len(face) == 4:
-                # Quad: split into 2 triangles
-                stl_data.vectors[i] = np.array([mesh.vertices[face[0]], mesh.vertices[face[1]], mesh.vertices[face[2]]])
-                i += 1
-                stl_data.vectors[i] = np.array([mesh.vertices[face[0]], mesh.vertices[face[2]], mesh.vertices[face[3]]])
-                i += 1
-            else:
-                # N-gon: fan triangulation from first vertex
-                for j in range(1, len(face) - 1):
-                    stl_data.vectors[i] = np.array(
-                        [mesh.vertices[face[0]], mesh.vertices[face[j]], mesh.vertices[face[j + 1]]]
-                    )
-                    i += 1
-
-        # Save the mesh to file in ASCII format
-        with open(output_file, "w") as f:
-            stl_data.write(f, mode="ascii")
-        print(f"Mesh saved successfully to {output_file} (ASCII format)")
-        return True
-    except ImportError:
-        print("numpy-stl package required for STL saving. Install with: pip install numpy-stl")
-        return False
-    except Exception as e:
-        print(f"Error saving STL file: {e}")
-        return False
-
-
-# Main execution
 if __name__ == "__main__":
-    # input_stl = None
     INPUT_STL = "non_manifold.stl"
-
-    if INPUT_STL is None:
-        mesh = generate_test_mesh()
-        print("Using test mesh with known non-manifold issues")
-    elif INPUT_STL:
-        mesh = load_stl_to_mesh(INPUT_STL)
-        if mesh is None:
-            print("Falling back to test mesh")
-            mesh = generate_test_mesh()
-    else:
-        mesh = generate_test_mesh()
-
-    # Train the RL agent
+    mesh = load_stl_to_mesh(INPUT_STL)
     repaired_mesh, trained_model = train_rl_agent(mesh=mesh, num_episodes=50, steps_per_episode=30, visualize=True)
-
-    # Save the result if desired
     if repaired_mesh:
         save_mesh_to_stl(repaired_mesh, "repaired_mesh.stl")
-
     print("Process completed!")
 
 # Non manifold types - https://www.sculpteo.com/en/3d-learning-hub/create-3d-file/fix-non-manifold-geometry/
